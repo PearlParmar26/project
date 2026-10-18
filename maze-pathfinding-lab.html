@@ -1,0 +1,954 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+</head>
+<body style="margin:0">
+<title>Maze Path-Finding Lab</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: a drafting-table tool — grid canvas on the left, instrument panel on the right; stacks on phones. */
+:root{
+  --paper:#eef2f3; --surface:#fbfcfc; --ink:#13212c; --muted:#5b6c78; --line:#cfd9df;
+  --accent:#2a5d8f; --accent-ink:#ffffff; --accent-soft:#dde8f2;
+  --cell-empty:#ffffff; --cell-grid:#d3dce2; --cell-wall:#1c2a36; --cell-weight:#d9c39a;
+  --vis-a:#c4ebe3; --vis-b:#9dbfe3; --path:#e09a00; --start:#1d8a5a; --end:#c43a4f;
+  --c-bfs:#2a6fb8; --c-dfs:#c43a4f; --c-dijkstra:#7b55c7; --c-astar:#1d8a5a;
+  --good:#1d7a50; --warn:#a05f00;
+  --f-display:"Bricolage Grotesque","Segoe UI",system-ui,sans-serif;
+  --f-body:"IBM Plex Sans",system-ui,-apple-system,sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --paper:#0e161d; --surface:#15202a; --ink:#e4ecf1; --muted:#93a5b2; --line:#27353f;
+  --accent:#7fb2e5; --accent-ink:#0e161d; --accent-soft:#1d3044;
+  --cell-empty:#1b2832; --cell-grid:#0f171e; --cell-wall:#8aa0ae; --cell-weight:#6e5c38;
+  --vis-a:#1d4f4a; --vis-b:#2a4672; --path:#f5b82e; --start:#3cc58a; --end:#f0657a;
+  --c-bfs:#6aa8ec; --c-dfs:#f0657a; --c-dijkstra:#ad8bf0; --c-astar:#3cc58a;
+  --good:#4fc58a; --warn:#e3a54a; color-scheme:dark; } }
+:root[data-theme="dark"]{
+  --paper:#0e161d; --surface:#15202a; --ink:#e4ecf1; --muted:#93a5b2; --line:#27353f;
+  --accent:#7fb2e5; --accent-ink:#0e161d; --accent-soft:#1d3044;
+  --cell-empty:#1b2832; --cell-grid:#0f171e; --cell-wall:#8aa0ae; --cell-weight:#6e5c38;
+  --vis-a:#1d4f4a; --vis-b:#2a4672; --path:#f5b82e; --start:#3cc58a; --end:#f0657a;
+  --c-bfs:#6aa8ec; --c-dfs:#f0657a; --c-dijkstra:#ad8bf0; --c-astar:#3cc58a;
+  --good:#4fc58a; --warn:#e3a54a; color-scheme:dark; }
+
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{background:var(--paper);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.5;
+  background-image:linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px);
+  background-size:32px 32px;background-attachment:fixed}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--surface)}
+.wrap{max-width:1240px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+h1,h2,h3{font-family:var(--f-display);text-wrap:balance;margin:0;line-height:1.15}
+h2{font-size:1.5rem;font-weight:700}
+h3{font-size:1.05rem;font-weight:700}
+p{margin:0}
+.mono{font-family:var(--f-mono)}
+button,select,input{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+/* header */
+.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--surface);border-bottom:1px solid var(--line)}
+.top .wrap{display:flex;align-items:center;gap:20px;flex-wrap:wrap;padding-block:12px}
+.brand{display:flex;align-items:center;gap:10px;margin-right:auto;min-width:0}
+.brand svg{flex:none}
+.brand h1{font-size:1.25rem;font-weight:700;letter-spacing:-.01em}
+.brand small{display:block;font-family:var(--f-mono);font-size:.72rem;color:var(--muted);letter-spacing:.04em}
+.tabs{display:flex;gap:4px;background:var(--paper);padding:4px;border-radius:10px;border:1px solid var(--line)}
+.tabs button{border:0;background:transparent;padding:6px 14px;border-radius:7px;cursor:pointer;font-weight:500;color:var(--muted)}
+.tabs button[aria-selected="true"]{background:var(--surface);color:var(--ink);box-shadow:0 1px 2px rgb(0 0 0 / .12)}
+
+main{padding-block:24px 48px}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:12px}
+.eyebrow{font-family:var(--f-mono);font-size:.72rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+
+/* visualizer */
+.viz{display:grid;grid-template-columns:minmax(0,1fr) 310px;gap:20px;align-items:start}
+.board{padding:16px;min-width:0;display:flex;flex-direction:column;gap:12px}
+.board-head{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap}
+.canvas-box{width:100%;display:flex;justify-content:center}
+canvas#grid{display:block;touch-action:none;cursor:crosshair;border-radius:4px;max-width:100%}
+.legend{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:.82rem;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.sw{width:12px;height:12px;border-radius:3px;display:inline-block;border:1px solid var(--line)}
+.side{display:flex;flex-direction:column;gap:16px}
+.ctrl{padding:16px;display:flex;flex-direction:column;gap:12px}
+.field{display:flex;flex-direction:column;gap:4px}
+.field label,.field .lbl{font-size:.8rem;font-weight:600;color:var(--muted)}
+select,input[type=number]{background:var(--paper);border:1px solid var(--line);border-radius:8px;padding:7px 10px;width:100%}
+input[type=range]{width:100%;accent-color:var(--accent)}
+.seg{display:grid;grid-template-columns:repeat(5,1fr);gap:4px}
+.seg button{border:1px solid var(--line);background:var(--paper);border-radius:7px;padding:6px 2px;font-size:.78rem;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:3px}
+.seg button[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-soft);color:var(--ink);font-weight:600}
+.row{display:flex;gap:8px;flex-wrap:wrap}
+.btn{border:1px solid var(--line);background:var(--paper);padding:8px 12px;border-radius:8px;cursor:pointer;font-weight:500}
+.btn:hover{border-color:var(--muted)}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:600}
+.btn.primary:hover{filter:brightness(1.07)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.grow{flex:1}
+.check{display:flex;gap:8px;align-items:center;font-size:.85rem}
+.check input{accent-color:var(--accent)}
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--line);border-radius:10px;overflow:hidden;border:1px solid var(--line)}
+.stat{background:var(--surface);padding:10px 12px}
+.stat .k{font-size:.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-family:var(--f-mono)}
+.stat .v{font-family:var(--f-mono);font-size:1.1rem;font-variant-numeric:tabular-nums;font-weight:500}
+.status{display:inline-flex;align-items:center;gap:6px;font-size:.85rem;font-weight:600}
+.status::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--muted)}
+.status.ok::before{background:var(--good)} .status.bad::before{background:var(--end)} .status.run::before{background:var(--path)}
+.hint{font-size:.82rem;color:var(--muted)}
+
+.table-box{overflow-x:auto;min-width:0}
+table{border-collapse:collapse;width:100%;font-size:.88rem}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+th{font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:600;font-family:var(--f-mono)}
+td.num{font-family:var(--f-mono);font-variant-numeric:tabular-nums;text-align:right}
+th.num{text-align:right}
+tbody tr.group-start td{border-top:2px solid var(--line)}
+.algo-tag{display:inline-flex;align-items:center;gap:6px;font-weight:600}
+.algo-tag i{width:10px;height:10px;border-radius:2px;display:inline-block}
+.pill{display:inline-block;font-size:.72rem;font-weight:600;padding:2px 8px;border-radius:99px;font-family:var(--f-mono)}
+.pill.good{color:var(--good);background:color-mix(in srgb,var(--good) 14%,transparent)}
+.pill.warn{color:var(--warn);background:color-mix(in srgb,var(--warn) 14%,transparent)}
+.compare{padding:16px;display:flex;flex-direction:column;gap:10px;margin-top:20px}
+
+/* benchmark */
+.bench{display:grid;grid-template-columns:300px minmax(0,1fr);gap:20px;align-items:start}
+.sizes{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.sizes label{display:flex;align-items:center;gap:6px;font-size:.85rem;font-family:var(--f-mono);background:var(--paper);border:1px solid var(--line);border-radius:7px;padding:5px 8px;cursor:pointer}
+.sizes input{accent-color:var(--accent)}
+.progress{height:6px;background:var(--paper);border-radius:99px;overflow:hidden;border:1px solid var(--line)}
+.progress i{display:block;height:100%;width:0;background:var(--accent);transition:width .15s}
+.results{display:flex;flex-direction:column;gap:20px;min-width:0}
+.card{padding:16px;display:flex;flex-direction:column;gap:12px;min-width:0}
+.charts{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.chart-legend{display:flex;gap:14px;flex-wrap:wrap;font-size:.82rem}
+.chart-legend span{display:inline-flex;align-items:center;gap:6px}
+.chart-legend i{width:14px;height:3px;border-radius:2px;display:inline-block}
+svg.chart{width:100%;height:auto;display:block}
+svg.chart text{fill:var(--muted);font-family:var(--f-mono);font-size:13px}
+svg.chart .gridline{stroke:var(--line);stroke-width:1}
+svg.chart .axis{stroke:var(--muted);stroke-width:1}
+svg.chart .title{fill:var(--ink);font-family:var(--f-body);font-size:14px;font-weight:600}
+.empty{padding:32px;text-align:center;color:var(--muted)}
+textarea#csvOut{width:100%;min-height:120px;font-family:var(--f-mono);font-size:.78rem;background:var(--paper);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:8px}
+
+/* theory */
+.theory{display:flex;flex-direction:column;gap:20px}
+.theory .card p{max-width:72ch}
+.flow{display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:.88rem}
+.flow b{background:var(--accent-soft);border:1px solid var(--line);border-radius:8px;padding:6px 10px;font-weight:600}
+.flow span{color:var(--muted)}
+.algo-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.algo-card{padding:16px;display:flex;flex-direction:column;gap:10px;min-width:0;border-top:4px solid var(--algo)}
+.algo-card .meta{display:flex;gap:8px;flex-wrap:wrap}
+pre{margin:0;background:var(--paper);border:1px solid var(--line);border-radius:8px;padding:12px;overflow-x:auto;font-family:var(--f-mono);font-size:.8rem;line-height:1.55}
+ul.tight{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:4px}
+
+@media (max-width:900px){
+  .viz,.bench{grid-template-columns:1fr}
+  .charts,.algo-grid{grid-template-columns:1fr}
+}
+@media (max-width:480px){
+  .brand small{display:none}
+  .tabs{width:100%} .tabs button{flex:1;padding:6px 6px}
+  .seg button{font-size:.7rem}
+}
+@media (prefers-reduced-motion:reduce){ .progress i{transition:none} }
+</style>
+
+<header class="top">
+  <div class="wrap">
+    <div class="brand">
+      <svg width="30" height="30" viewBox="0 0 30 30" aria-hidden="true">
+        <rect x="1" y="1" width="28" height="28" rx="5" fill="none" stroke="var(--ink)" stroke-width="2"/>
+        <path d="M7 1v16h8V9h8v14H7" fill="none" stroke="var(--ink)" stroke-width="2"/>
+        <path d="M11 5v8" stroke="var(--path)" stroke-width="2.5" stroke-linecap="round"/>
+        <circle cx="19" cy="17" r="2.2" fill="var(--end)"/>
+      </svg>
+      <div><h1>Maze Path-Finding Lab</h1><small>DAA MINI PROJECT · BFS · DFS · DIJKSTRA · A*</small></div>
+    </div>
+    <nav class="tabs" role="tablist">
+      <button role="tab" id="t-visualizer" aria-selected="true" data-tab="visualizer">Visualizer</button>
+      <button role="tab" id="t-benchmark" aria-selected="false" data-tab="benchmark">Benchmark</button>
+      <button role="tab" id="t-theory" aria-selected="false" data-tab="theory">Algorithms</button>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap">
+<!-- ============ VISUALIZER ============ -->
+<section id="tab-visualizer" role="tabpanel">
+  <div class="viz">
+    <div class="panel board">
+      <div class="board-head">
+        <div>
+          <div class="eyebrow">Input grid</div>
+          <h2 id="boardTitle">Maze with loops · 21 × 41</h2>
+        </div>
+        <span class="status" id="status">Ready</span>
+      </div>
+      <div class="canvas-box" id="canvasBox"><canvas id="grid" aria-label="Maze grid. Click or drag to edit cells."></canvas></div>
+      <div class="legend">
+        <span><i class="sw" style="background:var(--start)"></i>Start</span>
+        <span><i class="sw" style="background:var(--end)"></i>End</span>
+        <span><i class="sw" style="background:var(--cell-wall)"></i>Wall</span>
+        <span><i class="sw" style="background:var(--cell-weight)"></i>Mud (cost 5)</span>
+        <span><i class="sw" style="background:linear-gradient(90deg,var(--vis-a),var(--vis-b))"></i>Explored (early → late)</span>
+        <span><i class="sw" style="background:var(--path)"></i>Final path</span>
+      </div>
+      <p class="hint">Drag on the grid to draw with the selected tool. Drag the start or end marker to move it. Entering a normal cell costs 1; entering a mud cell costs 5.</p>
+    </div>
+
+    <aside class="side">
+      <div class="panel ctrl">
+        <div class="eyebrow">1 · Build the maze</div>
+        <div class="field"><label for="genType">Layout</label>
+          <select id="genType">
+            <option value="perfect">Maze (one route only)</option>
+            <option value="loops" selected>Maze with loops</option>
+            <option value="random">Random obstacles (30%)</option>
+            <option value="empty">Empty grid</option>
+          </select></div>
+        <div class="field"><label for="gridSize">Grid size</label>
+          <select id="gridSize">
+            <option value="15x25">Small · 15 × 25</option>
+            <option value="21x41" selected>Medium · 21 × 41</option>
+            <option value="31x61">Large · 31 × 61</option>
+            <option value="51x91">Huge · 51 × 91</option>
+          </select></div>
+        <label class="check"><input type="checkbox" id="genMud"> Scatter mud cells (cost 5)</label>
+        <button class="btn" id="genBtn">Generate new maze</button>
+        <div class="field"><span class="lbl">Drawing tool</span>
+          <div class="seg" id="tools">
+            <button data-tool="wall" aria-pressed="true"><i class="sw" style="background:var(--cell-wall)"></i>Wall</button>
+            <button data-tool="weight" aria-pressed="false"><i class="sw" style="background:var(--cell-weight)"></i>Mud</button>
+            <button data-tool="erase" aria-pressed="false"><i class="sw" style="background:var(--cell-empty)"></i>Erase</button>
+            <button data-tool="start" aria-pressed="false"><i class="sw" style="background:var(--start)"></i>Start</button>
+            <button data-tool="end" aria-pressed="false"><i class="sw" style="background:var(--end)"></i>End</button>
+          </div></div>
+      </div>
+
+      <div class="panel ctrl">
+        <div class="eyebrow">2 · Find the path</div>
+        <div class="field"><label for="algo">Algorithm</label>
+          <select id="algo">
+            <option value="bfs">Breadth-First Search (BFS)</option>
+            <option value="dfs">Depth-First Search (DFS)</option>
+            <option value="dijkstra">Dijkstra's Algorithm</option>
+            <option value="astar" selected>A* Search (Manhattan)</option>
+          </select></div>
+        <div class="field"><label for="speed">Animation speed: <span id="speedLbl">Medium</span></label>
+          <input type="range" id="speed" min="1" max="6" value="3"></div>
+        <div class="row">
+          <button class="btn primary grow" id="runBtn">Find path</button>
+          <button class="btn" id="clearBtn">Clear path</button>
+        </div>
+        <button class="btn" id="compareBtn">Compare all 4 on this maze</button>
+      </div>
+
+      <div class="panel ctrl">
+        <div class="eyebrow">3 · Output</div>
+        <div class="stats">
+          <div class="stat"><div class="k">Algorithm</div><div class="v" id="stAlgo">—</div></div>
+          <div class="stat"><div class="k">Path found</div><div class="v" id="stFound">—</div></div>
+          <div class="stat"><div class="k">Path length</div><div class="v" id="stLen">—</div></div>
+          <div class="stat"><div class="k">Path cost</div><div class="v" id="stCost">—</div></div>
+          <div class="stat"><div class="k">Cells explored</div><div class="v" id="stExp">—</div></div>
+          <div class="stat"><div class="k">Run time</div><div class="v" id="stTime">—</div></div>
+        </div>
+        <p class="hint">Run time is the average of repeated runs without animation, measured with <span class="mono">performance.now()</span> in this browser.</p>
+      </div>
+    </aside>
+  </div>
+
+  <div class="panel compare" id="comparePanel" hidden>
+    <div class="board-head">
+      <div><div class="eyebrow">Same maze, all algorithms</div><h3 id="compareTitle">Comparison</h3></div>
+    </div>
+    <div class="table-box"><table id="compareTable"></table></div>
+    <p class="hint">"Shortest" means the cost matches Dijkstra, which always finds the lowest-cost path.</p>
+  </div>
+</section>
+
+<!-- ============ BENCHMARK ============ -->
+<section id="tab-benchmark" role="tabpanel" hidden>
+  <div class="bench">
+    <aside class="panel ctrl">
+      <div class="eyebrow">Experiment setup</div>
+      <div class="field"><span class="lbl">Grid sizes (n × n)</span>
+        <div class="sizes" id="benchSizes">
+          <label><input type="checkbox" value="10" checked>10</label>
+          <label><input type="checkbox" value="25" checked>25</label>
+          <label><input type="checkbox" value="50" checked>50</label>
+          <label><input type="checkbox" value="100" checked>100</label>
+          <label><input type="checkbox" value="150">150</label>
+          <label><input type="checkbox" value="200" checked>200</label>
+        </div></div>
+      <div class="field"><label for="benchType">Grid type</label>
+        <select id="benchType">
+          <option value="random" selected>Random obstacles</option>
+          <option value="loops">Maze with loops</option>
+          <option value="perfect">Maze (one route only)</option>
+        </select></div>
+      <div class="field"><label for="benchDensity">Obstacle density: <span id="densLbl">25%</span></label>
+        <input type="range" id="benchDensity" min="0" max="40" value="25"></div>
+      <div class="field"><label for="benchMud">Mud cells (cost 5): <span id="mudLbl">10%</span></label>
+        <input type="range" id="benchMud" min="0" max="30" value="10"></div>
+      <div class="row">
+        <div class="field grow"><label for="benchTrials">Mazes per size</label><input type="number" id="benchTrials" min="1" max="20" value="5"></div>
+        <div class="field grow"><label for="benchSeed">Random seed</label><input type="number" id="benchSeed" value="42"></div>
+      </div>
+      <button class="btn primary" id="benchBtn">Run benchmark</button>
+      <div class="progress"><i id="benchProg"></i></div>
+      <p class="hint" id="benchMsg">Every algorithm runs on the same mazes. The same seed always generates the same mazes, so your results can be reproduced.</p>
+    </aside>
+
+    <div class="results">
+      <div class="panel card">
+        <div class="board-head">
+          <div><div class="eyebrow">Experimental results</div><h2>Input size vs. performance</h2></div>
+          <button class="btn" id="copyCsv" disabled>Copy table as CSV</button>
+        </div>
+        <textarea id="csvOut" hidden readonly aria-label="CSV results"></textarea>
+        <div class="table-box" id="benchTableBox"><div class="empty">Run the benchmark to fill this table.</div></div>
+      </div>
+      <div class="charts">
+        <div class="panel card"><div class="eyebrow">Graph 1</div><h3>Grid size vs. execution time</h3><div class="chart-legend" data-legend></div><div id="chartTime"></div></div>
+        <div class="panel card"><div class="eyebrow">Graph 2</div><h3>Grid size vs. cells explored</h3><div class="chart-legend" data-legend></div><div id="chartExp"></div></div>
+      </div>
+      <div class="panel card">
+        <div class="eyebrow">Reading the results</div>
+        <ul class="tight" id="benchInsights"><li>Insights appear here after a run.</li></ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ THEORY ============ -->
+<section id="tab-theory" role="tabpanel" hidden>
+  <div class="theory">
+    <div class="panel card">
+      <div class="eyebrow">Problem definition</div>
+      <h2>Maze and Path-Finding Optimization</h2>
+      <p><b>Input:</b> a grid of R × C cells. Each cell is open, a wall, or mud (higher cost), plus a start cell S and an end cell E.<br>
+      <b>Output:</b> a sequence of adjacent open cells from S to E, or a report that no path exists.<br>
+      <b>Constraints:</b> moves go up, down, left or right only. Walls cannot be entered. Entering an open cell costs 1 and entering mud costs 5.<br>
+      <b>Objective:</b> find the path with the minimum total cost while exploring as few cells as possible.</p>
+      <div class="flow" aria-label="System flow">
+        <b>Grid input</b><span>→</span><b>Graph model</b><span>→</span><b>Algorithm</b><span>→</span><b>Path + metrics</b><span>→</span><b>Benchmark &amp; compare</b>
+      </div>
+      <p class="hint">Graph model: every open cell is a vertex V, and every pair of neighbouring open cells is an edge E. Each cell has at most 4 neighbours, so E ≤ 4V and O(V + E) = O(V) on a grid.</p>
+    </div>
+
+    <div class="panel card">
+      <div class="eyebrow">Complexity analysis</div>
+      <h3>Theoretical complexity (V = cells, E ≤ 4V, d = length of the path found)</h3>
+      <div class="table-box"><table>
+        <thead><tr><th>Algorithm</th><th>Technique</th><th>Best case</th><th>Average case</th><th>Worst case</th><th>Space</th><th>Shortest path?</th></tr></thead>
+        <tbody>
+          <tr><td><span class="algo-tag"><i style="background:var(--c-bfs)"></i>BFS</span></td><td>Graph traversal</td><td class="mono">O(1)</td><td class="mono">O(V + E)</td><td class="mono">O(V + E)</td><td class="mono">O(V)</td><td><span class="pill warn">Only if all costs equal</span></td></tr>
+          <tr><td><span class="algo-tag"><i style="background:var(--c-dfs)"></i>DFS</span></td><td>Backtracking</td><td class="mono">O(d)</td><td class="mono">O(V + E)</td><td class="mono">O(V + E)</td><td class="mono">O(V)</td><td><span class="pill warn">No</span></td></tr>
+          <tr><td><span class="algo-tag"><i style="background:var(--c-dijkstra)"></i>Dijkstra</span></td><td>Greedy</td><td class="mono">O(1)</td><td class="mono">O((V + E) log V)</td><td class="mono">O((V + E) log V)</td><td class="mono">O(V)</td><td><span class="pill good">Yes (costs ≥ 0)</span></td></tr>
+          <tr><td><span class="algo-tag"><i style="background:var(--c-astar)"></i>A*</span></td><td>Greedy + heuristic</td><td class="mono">O(d log d)</td><td class="mono">much less than Dijkstra</td><td class="mono">O((V + E) log V)</td><td class="mono">O(V)</td><td><span class="pill good">Yes (admissible h)</span></td></tr>
+        </tbody></table></div>
+      <ul class="tight hint">
+        <li><b>Best case:</b> the end is right next to the start, or (for DFS) the first branch tried leads straight to the end. For A*, a perfect heuristic expands only the cells on the path.</li>
+        <li><b>Worst case:</b> the end is unreachable or is the last cell reached, so every open cell gets explored.</li>
+        <li>Dijkstra and A* here use a binary min-heap with lazy deletion. The heap can hold up to E entries, so each push or pop costs O(log E) = O(log V).</li>
+        <li>A* uses the Manhattan distance h = |r − r<sub>E</sub>| + |c − c<sub>E</sub>|. Every move costs at least 1, so h never overestimates (it is admissible) and A* stays optimal.</li>
+      </ul>
+    </div>
+
+    <div class="algo-grid">
+      <div class="panel algo-card" style="--algo:var(--c-bfs)">
+        <div class="eyebrow">Algorithm 1</div><h3>Breadth-First Search</h3>
+        <p>BFS explores the grid in rings, all cells at distance 1, then distance 2, and so on, using a FIFO queue. The first time it reaches the end, that path has the fewest steps. It ignores mud cost, so on weighted grids its path can cost more than the optimum.</p>
+        <div class="meta"><span class="pill good">Data structure: queue</span></div>
+<pre>BFS(grid, S, E):
+  queue ← [S]; visited[S] ← true
+  while queue not empty:
+    u ← queue.dequeue()
+    if u = E: return buildPath(prev, E)
+    for each open neighbour v of u:
+      if not visited[v]:
+        visited[v] ← true; prev[v] ← u
+        queue.enqueue(v)
+  return "no path"</pre>
+      </div>
+      <div class="panel algo-card" style="--algo:var(--c-dfs)">
+        <div class="eyebrow">Algorithm 2</div><h3>Depth-First Search (Backtracking)</h3>
+        <p>DFS follows one corridor as far as it goes and backtracks only at a dead end. It finds <i>a</i> path, often quickly in a perfect maze, but it can be much longer than the shortest one. Neighbours are tried in the order up, right, down, left.</p>
+        <div class="meta"><span class="pill good">Data structure: stack</span></div>
+<pre>DFS(grid, S, E):
+  stack ← [(S, none)]
+  while stack not empty:
+    (u, p) ← stack.pop()
+    if visited[u]: continue
+    visited[u] ← true; prev[u] ← p
+    if u = E: return buildPath(prev, E)
+    for each open neighbour v of u:
+      if not visited[v]: stack.push((v, u))
+  return "no path"</pre>
+      </div>
+      <div class="panel algo-card" style="--algo:var(--c-dijkstra)">
+        <div class="eyebrow">Algorithm 3</div><h3>Dijkstra's Algorithm</h3>
+        <p>Dijkstra is a greedy algorithm: it always expands the unexplored cell with the smallest known cost from the start. Because costs are never negative, a cell's cost is final once it is removed from the heap. This gives the minimum-cost path even with mud.</p>
+        <div class="meta"><span class="pill good">Data structure: min-heap</span></div>
+<pre>DIJKSTRA(grid, S, E):
+  dist[*] ← ∞; dist[S] ← 0
+  heap.push(S, 0)
+  while heap not empty:
+    u ← heap.popMin()
+    if done[u]: continue
+    done[u] ← true
+    if u = E: return buildPath(prev, E)
+    for each open neighbour v of u:
+      nd ← dist[u] + cost(v)
+      if nd &lt; dist[v]:
+        dist[v] ← nd; prev[v] ← u
+        heap.push(v, nd)
+  return "no path"</pre>
+      </div>
+      <div class="panel algo-card" style="--algo:var(--c-astar)">
+        <div class="eyebrow">Algorithm 4</div><h3>A* Search</h3>
+        <p>A* is Dijkstra with a sense of direction. It orders cells by f = g + h, where g is the cost so far and h is the Manhattan distance left to the end. Cells that lead away from the goal are expanded later or never. Ties go to the cell with the smaller h.</p>
+        <div class="meta"><span class="pill good">Data structure: min-heap</span></div>
+<pre>A_STAR(grid, S, E):
+  g[*] ← ∞; g[S] ← 0
+  heap.push(S, h(S))
+  while heap not empty:
+    u ← heap.popMin()          // smallest f = g + h
+    if done[u]: continue
+    done[u] ← true
+    if u = E: return buildPath(prev, E)
+    for each open neighbour v of u:
+      ng ← g[u] + cost(v)
+      if ng &lt; g[v]:
+        g[v] ← ng; prev[v] ← u
+        heap.push(v, ng + h(v))
+  return "no path"</pre>
+      </div>
+    </div>
+
+    <div class="panel card">
+      <div class="eyebrow">Maze generation</div>
+      <h3>Randomized depth-first maze generator</h3>
+      <p>The grid starts as solid walls. The generator carves a passage from a random neighbouring cell two steps away and backtracks when it gets stuck, which produces a <i>perfect maze</i> with exactly one route between any two cells. The "with loops" layout then removes about 8% of the inner walls, creating alternative routes so the algorithms can return different paths. This step runs in O(V) time.</p>
+    </div>
+  </div>
+</section>
+</main>
+
+<script>
+"use strict";
+/* ================= Core grid + algorithms ================= */
+const DR=[-1,0,1,0], DC=[0,1,0,-1];   // up, right, down, left
+const WALL=1, MUD=2, MUD_COST=5;
+
+function makeGrid(rows, cols){ return {rows, cols, cells:new Uint8Array(rows*cols), start:0, end:rows*cols-1}; }
+const costOf=(g,i)=> g.cells[i]===MUD?MUD_COST:1;
+
+function buildResult(g, prev, found, order, n){
+  const path=[]; let cost=0;
+  if(found){ let u=g.end; while(u!==-1){ path.push(u); if(u!==g.start) cost+=costOf(g,u); u=prev[u]; } path.reverse(); }
+  return {found, path, cost, explored:n, order: order?order.subarray(0,n):null};
+}
+
+function bfs(g, rec){
+  const {rows,cols,cells,start,end}=g, N=rows*cols;
+  const prev=new Int32Array(N).fill(-1), seen=new Uint8Array(N), q=new Int32Array(N);
+  const order=rec?new Int32Array(N):null;
+  let h=0,t=0,n=0,found=false;
+  q[t++]=start; seen[start]=1;
+  while(h<t){
+    const u=q[h++]; if(order) order[n]=u; n++;
+    if(u===end){found=true;break;}
+    const r=(u/cols)|0, c=u-r*cols;
+    for(let k=0;k<4;k++){
+      const nr=r+DR[k], nc=c+DC[k];
+      if(nr<0||nr>=rows||nc<0||nc>=cols) continue;
+      const v=nr*cols+nc;
+      if(seen[v]||cells[v]===WALL) continue;
+      seen[v]=1; prev[v]=u; q[t++]=v;
+    }
+  }
+  return buildResult(g,prev,found,order,n);
+}
+
+function dfs(g, rec){
+  const {rows,cols,cells,start,end}=g, N=rows*cols;
+  const prev=new Int32Array(N).fill(-1), seen=new Uint8Array(N);
+  const cap=4*N+4, st=new Int32Array(cap), par=new Int32Array(cap);
+  const order=rec?new Int32Array(N):null;
+  let sp=0,n=0,found=false;
+  st[sp]=start; par[sp]=-1; sp++;
+  while(sp>0){
+    sp--; const u=st[sp], p=par[sp];
+    if(seen[u]) continue;
+    seen[u]=1; prev[u]=p; if(order) order[n]=u; n++;
+    if(u===end){found=true;break;}
+    const r=(u/cols)|0, c=u-r*cols;
+    for(let k=3;k>=0;k--){           // pushed in reverse so "up" is tried first
+      const nr=r+DR[k], nc=c+DC[k];
+      if(nr<0||nr>=rows||nc<0||nc>=cols) continue;
+      const v=nr*cols+nc;
+      if(seen[v]||cells[v]===WALL) continue;
+      st[sp]=v; par[sp]=u; sp++;
+    }
+  }
+  return buildResult(g,prev,found,order,n);
+}
+
+class MinHeap{
+  constructor(cap){ this.k=new Float64Array(cap); this.v=new Int32Array(cap); this.n=0; }
+  grow(){ const k=new Float64Array(this.k.length*2), v=new Int32Array(this.v.length*2); k.set(this.k); v.set(this.v); this.k=k; this.v=v; }
+  push(key,val){
+    if(this.n===this.k.length) this.grow();
+    const k=this.k, v=this.v; let i=this.n++;
+    while(i>0){ const p=(i-1)>>1; if(k[p]<=key) break; k[i]=k[p]; v[i]=v[p]; i=p; }
+    k[i]=key; v[i]=val;
+  }
+  pop(){
+    const k=this.k, v=this.v, top=v[0], n=--this.n;
+    if(n>0){
+      const key=k[n], val=v[n]; let i=0;
+      for(;;){ let l=2*i+1; if(l>=n) break; const r=l+1; if(r<n&&k[r]<k[l]) l=r; if(k[l]>=key) break; k[i]=k[l]; v[i]=v[l]; i=l; }
+      k[i]=key; v[i]=val;
+    }
+    return top;
+  }
+}
+
+// Dijkstra (useH=false) and A* (useH=true) share one implementation.
+function heapSearch(g, useH, rec){
+  const {rows,cols,cells,start,end}=g, N=rows*cols;
+  const er=(end/cols)|0, ec=end-er*cols;
+  const dist=new Float64Array(N).fill(Infinity), prev=new Int32Array(N).fill(-1), done=new Uint8Array(N);
+  const order=rec?new Int32Array(N):null;
+  const heap=new MinHeap(Math.max(16,N));
+  const H=(r,c)=>Math.abs(r-er)+Math.abs(c-ec);
+  let n=0, found=false;
+  dist[start]=0;
+  { const r=(start/cols)|0, c=start-r*cols; heap.push(useH? H(r,c)*1024+H(r,c) : 0, start); }
+  while(heap.n>0){
+    const u=heap.pop();
+    if(done[u]) continue;
+    done[u]=1; if(order) order[n]=u; n++;
+    if(u===end){found=true;break;}
+    const r=(u/cols)|0, c=u-r*cols, du=dist[u];
+    for(let k=0;k<4;k++){
+      const nr=r+DR[k], nc=c+DC[k];
+      if(nr<0||nr>=rows||nc<0||nc>=cols) continue;
+      const v=nr*cols+nc, cv=cells[v];
+      if(cv===WALL||done[v]) continue;
+      const nd=du+(cv===MUD?MUD_COST:1);
+      if(nd<dist[v]){
+        dist[v]=nd; prev[v]=u;
+        if(useH){ const h=H(nr,nc); heap.push((nd+h)*1024+h, v); }  // f first, ties broken by smaller h
+        else heap.push(nd, v);
+      }
+    }
+  }
+  return buildResult(g,prev,found,order,n);
+}
+
+const ALGOS=[
+  {id:'bfs', name:'BFS', full:'Breadth-First Search', color:'--c-bfs', fn:(g,r)=>bfs(g,r)},
+  {id:'dfs', name:'DFS', full:'Depth-First Search', color:'--c-dfs', fn:(g,r)=>dfs(g,r)},
+  {id:'dijkstra', name:'Dijkstra', full:"Dijkstra's Algorithm", color:'--c-dijkstra', fn:(g,r)=>heapSearch(g,false,r)},
+  {id:'astar', name:'A*', full:'A* Search', color:'--c-astar', fn:(g,r)=>heapSearch(g,true,r)},
+];
+const algoById=id=>ALGOS.find(a=>a.id===id);
+
+function timeIt(fn, g){
+  fn(g,false);                                // warm-up run (JIT)
+  let reps=0; const t0=performance.now(); let t=0;
+  do{ fn(g,false); reps++; t=performance.now()-t0; } while(t<12 && reps<5000);
+  return t/reps;
+}
+
+/* ================= Generators ================= */
+function mulberry32(a){ return function(){ a|=0; a=a+0x6D2B79F5|0; let t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
+
+function genMaze(rows, cols, rng, loopFrac){
+  const g=makeGrid(rows,cols); g.cells.fill(WALL);
+  const idx=(r,c)=>r*cols+c;
+  const stack=[[1,1]]; g.cells[idx(1,1)]=0;
+  const dirs=[[-2,0],[0,2],[2,0],[0,-2]];
+  while(stack.length){
+    const [r,c]=stack[stack.length-1];
+    const opts=[];
+    for(const [dr,dc] of dirs){ const nr=r+dr, nc=c+dc; if(nr>0&&nr<rows-1&&nc>0&&nc<cols-1&&g.cells[idx(nr,nc)]===WALL) opts.push([nr,nc,dr,dc]); }
+    if(!opts.length){ stack.pop(); continue; }
+    const [nr,nc,dr,dc]=opts[(rng()*opts.length)|0];
+    g.cells[idx(r+dr/2,c+dc/2)]=0; g.cells[idx(nr,nc)]=0; stack.push([nr,nc]);
+  }
+  if(loopFrac>0){
+    for(let r=1;r<rows-1;r++) for(let c=1;c<cols-1;c++){
+      const i=idx(r,c); if(g.cells[i]!==WALL) continue;
+      const horiz=g.cells[idx(r,c-1)]!==WALL&&g.cells[idx(r,c+1)]!==WALL&&g.cells[idx(r-1,c)]===WALL&&g.cells[idx(r+1,c)]===WALL;
+      const vert=g.cells[idx(r-1,c)]!==WALL&&g.cells[idx(r+1,c)]!==WALL&&g.cells[idx(r,c-1)]===WALL&&g.cells[idx(r,c+1)]===WALL;
+      if((horiz||vert)&&rng()<loopFrac) g.cells[i]=0;
+    }
+  }
+  g.start=idx(1,1); g.end=idx(rows-2,cols-2);
+  return g;
+}
+
+function genRandom(rows, cols, rng, density){
+  for(let attempt=0;attempt<200;attempt++){
+    const g=makeGrid(rows,cols);
+    for(let i=0;i<g.cells.length;i++) g.cells[i]=rng()<density?WALL:0;
+    g.start=0; g.end=rows*cols-1; g.cells[g.start]=0; g.cells[g.end]=0;
+    if(bfs(g,false).found) return g;
+  }
+  const g=makeGrid(rows,cols); g.end=rows*cols-1; return g;
+}
+
+function sprinkleMud(g, rng, frac){
+  if(frac<=0) return;
+  for(let i=0;i<g.cells.length;i++) if(g.cells[i]===0&&i!==g.start&&i!==g.end&&rng()<frac) g.cells[i]=MUD;
+}
+
+function buildGrid(type, rows, cols, rng, opts={}){
+  let g;
+  if(type==='perfect') g=genMaze(rows,cols,rng,0);
+  else if(type==='loops') g=genMaze(rows,cols,rng,0.08);
+  else if(type==='random') g=genRandom(rows,cols,rng,opts.density??0.3);
+  else { g=makeGrid(rows,cols); g.start=Math.floor(rows/2)*cols+2; g.end=Math.floor(rows/2)*cols+cols-3; }
+  sprinkleMud(g,rng,opts.mud||0);
+  return g;
+}
+
+/* ================= Theme colors ================= */
+let COL={};
+function hexToRgb(h){ h=h.trim().replace('#',''); if(h.length===3) h=h.split('').map(x=>x+x).join(''); const n=parseInt(h,16); return [n>>16&255,n>>8&255,n&255]; }
+function readColors(){
+  const cs=getComputedStyle(document.documentElement);
+  const get=n=>cs.getPropertyValue(n).trim()||'#888888';
+  COL={empty:get('--cell-empty'),grid:get('--cell-grid'),wall:get('--cell-wall'),mud:get('--cell-weight'),
+       path:get('--path'),start:get('--start'),end:get('--end'),visA:hexToRgb(get('--vis-a')),visB:hexToRgb(get('--vis-b')),mudRgb:hexToRgb(get('--cell-weight'))};
+}
+const mix=(a,b,t)=>`rgb(${Math.round(a[0]+(b[0]-a[0])*t)},${Math.round(a[1]+(b[1]-a[1])*t)},${Math.round(a[2]+(b[2]-a[2])*t)})`;
+
+/* ================= Visualizer ================= */
+const $=s=>document.querySelector(s);
+const canvas=$('#grid'), ctx=canvas.getContext('2d');
+let grid, rank, cs=10, gap=1, shownPath=null, anim=null, tool='wall';
+
+function newGrid(){
+  stopAnim();
+  const [rows,cols]=$('#gridSize').value.split('x').map(Number);
+  const type=$('#genType').value;
+  grid=buildGrid(type,rows,cols,Math.random,{density:0.3,mud:$('#genMud').checked?0.1:0});
+  rank=new Float32Array(rows*cols).fill(-1); shownPath=null;
+  const label={perfect:'Maze (one route only)',loops:'Maze with loops',random:'Random obstacles',empty:'Empty grid'}[type];
+  $('#boardTitle').textContent=`${label} · ${rows} × ${cols}`;
+  resetStats(); setStatus('Ready',''); $('#comparePanel').hidden=true;
+  layout();
+}
+
+function layout(){
+  const box=$('#canvasBox'); const w=box.clientWidth||600;
+  const maxH=Math.max(260, window.innerHeight*0.7);
+  cs=Math.max(3,Math.floor(Math.min(w/grid.cols, maxH/grid.rows)));
+  gap=cs>=9?1:0;
+  const dpr=window.devicePixelRatio||1;
+  canvas.style.width=cs*grid.cols+'px'; canvas.style.height=cs*grid.rows+'px';
+  canvas.width=Math.round(cs*grid.cols*dpr); canvas.height=Math.round(cs*grid.rows*dpr);
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  drawAll();
+}
+
+function drawCell(i){
+  const r=(i/grid.cols)|0, c=i-r*grid.cols, x=c*cs, y=r*cs;
+  const t=grid.cells[i];
+  let fill;
+  if(t===WALL) fill=COL.wall;
+  else if(rank[i]>=0) fill=mix(COL.visA,COL.visB,rank[i]);
+  else if(t===MUD) fill=COL.mud;
+  else fill=COL.empty;
+  ctx.fillStyle=COL.grid; ctx.fillRect(x,y,cs,cs);
+  ctx.fillStyle=fill;
+  if(t===WALL) ctx.fillRect(x,y,cs,cs); else ctx.fillRect(x+gap,y+gap,cs-gap,cs-gap);
+  if(t===MUD && rank[i]>=0){ ctx.fillStyle=COL.mud; const s=Math.max(2,cs*0.36); ctx.fillRect(x+(cs-s)/2,y+(cs-s)/2,s,s); }
+}
+const center=i=>{ const r=(i/grid.cols)|0, c=i-r*grid.cols; return [c*cs+cs/2, r*cs+cs/2]; };
+function drawMarker(i,color){
+  const [x,y]=center(i); ctx.fillStyle=color; ctx.beginPath(); ctx.arc(x,y,Math.max(2.5,cs*0.42),0,Math.PI*2); ctx.fill();
+}
+function drawPath(path, upto){
+  if(!path||path.length<2) return;
+  ctx.strokeStyle=COL.path; ctx.lineWidth=Math.max(2,cs*0.32); ctx.lineCap='round'; ctx.lineJoin='round';
+  ctx.beginPath(); const [x0,y0]=center(path[0]); ctx.moveTo(x0,y0);
+  const end=Math.min(upto??path.length, path.length);
+  for(let k=1;k<end;k++){ const [x,y]=center(path[k]); ctx.lineTo(x,y); }
+  ctx.stroke();
+}
+function drawAll(){
+  if(!grid) return;
+  for(let i=0;i<grid.cells.length;i++) drawCell(i);
+  if(shownPath) drawPath(shownPath);
+  drawMarker(grid.start,COL.start); drawMarker(grid.end,COL.end);
+}
+
+function stopAnim(){ if(anim){ cancelAnimationFrame(anim.raf); anim=null; setRunning(false);} }
+function clearSearch(){ stopAnim(); rank.fill(-1); shownPath=null; drawAll(); }
+function setRunning(on){ ['#runBtn','#compareBtn','#genBtn'].forEach(s=>$(s).disabled=false); $('#runBtn').textContent=on?'Stop':'Find path'; }
+
+const SPEEDS=[[1,'Very slow'],[2,'Slow'],[6,'Medium'],[20,'Fast'],[80,'Very fast'],[Infinity,'Instant']];
+function speedVal(){ return SPEEDS[$('#speed').value-1]; }
+
+function setStatus(txt,cls){ const s=$('#status'); s.textContent=txt; s.className='status '+(cls||''); }
+function resetStats(){ ['#stAlgo','#stFound','#stLen','#stCost','#stExp','#stTime'].forEach(s=>$(s).textContent='—'); }
+const fmtMs=ms=> ms<0.01? (ms*1000).toFixed(1)+' µs' : ms<1? (ms*1000).toFixed(0)+' µs' : ms.toFixed(2)+' ms';
+
+function runSelected(){
+  if(anim){ stopAnim(); setStatus('Stopped',''); return; }
+  clearSearch(); $('#comparePanel').hidden=true;
+  const a=algoById($('#algo').value);
+  const res=a.fn(grid,true), ms=timeIt(a.fn,grid);
+  $('#stAlgo').textContent=a.name;
+  $('#stFound').textContent=res.found?'Yes':'No';
+  $('#stLen').textContent=res.found?(res.path.length-1)+' steps':'—';
+  $('#stCost').textContent=res.found?res.cost:'—';
+  $('#stExp').textContent=res.explored.toLocaleString();
+  $('#stTime').textContent=fmtMs(ms);
+  const total=Math.max(1,res.explored-1);
+  const per=speedVal()[0];
+  if(per===Infinity){
+    for(let k=0;k<res.order.length;k++) rank[res.order[k]]=k/total;
+    shownPath=res.found?res.path:null; drawAll(); finishStatus(res,a); return;
+  }
+  setStatus(`Running ${a.name}…`,'run'); setRunning(true);
+  anim={i:0, j:1, res, raf:0};
+  const step=()=>{
+    const A=anim; if(!A) return;
+    const order=A.res.order;
+    if(A.i<order.length){
+      const lim=Math.min(order.length,A.i+per);
+      for(;A.i<lim;A.i++){ const u=order[A.i]; rank[u]=A.i/total; drawCell(u); }
+      drawMarker(grid.start,COL.start); drawMarker(grid.end,COL.end);
+    } else if(A.res.found && A.j<A.res.path.length){
+      A.j=Math.min(A.res.path.length, A.j+Math.max(1,Math.ceil(per/3)));
+      drawPath(A.res.path, A.j); drawMarker(grid.start,COL.start); drawMarker(grid.end,COL.end);
+    } else {
+      shownPath=A.res.found?A.res.path:null; anim=null; setRunning(false); drawAll(); finishStatus(A.res,a); return;
+    }
+    A.raf=requestAnimationFrame(step);
+  };
+  anim.raf=requestAnimationFrame(step);
+}
+function finishStatus(res,a){ res.found? setStatus(`${a.name}: path found`,'ok') : setStatus(`${a.name}: no path exists`,'bad'); }
+
+function compareAll(){
+  clearSearch();
+  const rows=ALGOS.map(a=>{ const r=a.fn(grid,false); return {a, r, ms:timeIt(a.fn,grid)}; });
+  const best=Math.min(...rows.filter(x=>x.r.found).map(x=>x.r.cost));
+  const minExp=Math.min(...rows.map(x=>x.r.explored)), minMs=Math.min(...rows.map(x=>x.ms));
+  let html='<thead><tr><th>Algorithm</th><th class="num">Run time</th><th class="num">Cells explored</th><th class="num">Path length</th><th class="num">Path cost</th><th>Result</th></tr></thead><tbody>';
+  for(const {a,r,ms} of rows){
+    const verdict=!r.found?'<span class="pill warn">No path</span>': r.cost===best?'<span class="pill good">Shortest</span>':`<span class="pill warn">+${r.cost-best} cost (${Math.round((r.cost/best-1)*100)}% longer)</span>`;
+    html+=`<tr><td><span class="algo-tag"><i style="background:var(${a.color})"></i>${a.full}</span></td>
+      <td class="num">${fmtMs(ms)}${ms===minMs?' ★':''}</td><td class="num">${r.explored.toLocaleString()}${r.explored===minExp?' ★':''}</td>
+      <td class="num">${r.found?r.path.length-1:'—'}</td><td class="num">${r.found?r.cost:'—'}</td><td>${verdict}</td></tr>`;
+  }
+  html+='</tbody>';
+  $('#compareTable').innerHTML=html;
+  $('#compareTitle').textContent=`${grid.rows} × ${grid.cols} grid · ${grid.cells.reduce((s,v)=>s+(v!==WALL),0).toLocaleString()} open cells`;
+  $('#comparePanel').hidden=false;
+  // show the selected algorithm's result on the board
+  const sel=algoById($('#algo').value), res=sel.fn(grid,true), total=Math.max(1,res.explored-1);
+  for(let k=0;k<res.order.length;k++) rank[res.order[k]]=k/total;
+  shownPath=res.found?res.path:null; drawAll();
+  setStatus(`Compared 4 algorithms · board shows ${sel.name}`,'ok');
+  $('#comparePanel').scrollIntoView({behavior: matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth', block:'nearest'});
+}
+
+/* editing */
+let drag=null;
+function cellAt(e){
+  const rect=canvas.getBoundingClientRect();
+  const c=Math.floor((e.clientX-rect.left)/rect.width*grid.cols), r=Math.floor((e.clientY-rect.top)/rect.height*grid.rows);
+  if(r<0||c<0||r>=grid.rows||c>=grid.cols) return -1; return r*grid.cols+c;
+}
+function applyTool(i){
+  if(i<0) return;
+  if(drag.mode==='start'||drag.mode==='end'){
+    if(grid.cells[i]===WALL||i===(drag.mode==='start'?grid.end:grid.start)) return;
+    grid[drag.mode]=i; drawAll(); return;
+  }
+  if(i===grid.start||i===grid.end) return;
+  grid.cells[i]=drag.value; drawCell(i); drawMarker(grid.start,COL.start); drawMarker(grid.end,COL.end);
+}
+canvas.addEventListener('pointerdown',e=>{
+  const i=cellAt(e); if(i<0) return;
+  if(anim) stopAnim();
+  if(rank[0]!==undefined && (shownPath||rank.some(v=>v>=0))){ rank.fill(-1); shownPath=null; drawAll(); setStatus('Edited · run again',''); }
+  let mode=tool;
+  if(i===grid.start) mode='start'; else if(i===grid.end) mode='end';
+  let value=0;
+  if(mode==='wall') value=grid.cells[i]===WALL?0:WALL;
+  else if(mode==='weight') value=grid.cells[i]===MUD?0:MUD;
+  drag={mode,value};
+  canvas.setPointerCapture(e.pointerId); applyTool(i); e.preventDefault();
+});
+canvas.addEventListener('pointermove',e=>{ if(drag) applyTool(cellAt(e)); });
+const endDrag=()=>{ drag=null; };
+canvas.addEventListener('pointerup',endDrag); canvas.addEventListener('pointercancel',endDrag);
+
+$('#tools').addEventListener('click',e=>{
+  const b=e.target.closest('button'); if(!b) return; tool=b.dataset.tool;
+  $('#tools').querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',x===b?'true':'false'));
+});
+$('#genBtn').onclick=newGrid;
+$('#genType').onchange=newGrid; $('#gridSize').onchange=newGrid; $('#genMud').onchange=newGrid;
+$('#runBtn').onclick=runSelected;
+$('#clearBtn').onclick=()=>{ clearSearch(); resetStats(); setStatus('Ready',''); };
+$('#compareBtn').onclick=compareAll;
+$('#speed').oninput=()=>$('#speedLbl').textContent=speedVal()[1];
+$('#algo').onchange=()=>{ if(!anim && shownPath!==null) runSelected(); };
+
+/* ================= Benchmark ================= */
+let benchData=null, benchRunning=false;
+$('#benchDensity').oninput=e=>$('#densLbl').textContent=e.target.value+'%';
+$('#benchMud').oninput=e=>$('#mudLbl').textContent=e.target.value+'%';
+const tick=()=>new Promise(r=>setTimeout(r,0));
+
+async function runBenchmark(){
+  if(benchRunning) return;
+  const sizes=[...document.querySelectorAll('#benchSizes input:checked')].map(x=>+x.value).sort((a,b)=>a-b);
+  if(!sizes.length){ $('#benchMsg').textContent='Select at least one grid size.'; return; }
+  benchRunning=true; $('#benchBtn').disabled=true; $('#benchBtn').textContent='Running…';
+  const type=$('#benchType').value, density=$('#benchDensity').value/100, mud=$('#benchMud').value/100;
+  const trials=Math.max(1,Math.min(20,+$('#benchTrials').value||5)), seed=+$('#benchSeed').value||0;
+  const rng=mulberry32(seed);
+  const rowsOut=[]; let done=0; const total=sizes.length*trials;
+  for(const n0 of sizes){
+    const n=(type==='random')?n0:(n0%2?n0:n0+1);
+    const acc=ALGOS.map(()=>({ms:0,exp:0,cost:0,len:0,found:0,optimal:0}));
+    let openCells=0;
+    for(let t=0;t<trials;t++){
+      const g=buildGrid(type,n,n,rng,{density,mud});
+      openCells+=g.cells.reduce((s,v)=>s+(v!==WALL),0);
+      const res=ALGOS.map(a=>a.fn(g,false));
+      const best=res[2].cost;   // Dijkstra is the optimal reference
+      ALGOS.forEach((a,k)=>{
+        const ms=timeIt(a.fn,g), r=res[k];
+        acc[k].ms+=ms; acc[k].exp+=r.explored;
+        if(r.found){ acc[k].found++; acc[k].cost+=r.cost; acc[k].len+=r.path.length-1; if(r.cost===best) acc[k].optimal++; }
+      });
+      done++; $('#benchProg').style.width=(done/total*100)+'%';
+      $('#benchMsg').textContent=`Running ${n} × ${n} · maze ${t+1} of ${trials}…`;
+      await tick();
+    }
+    ALGOS.forEach((a,k)=>{ const A=acc[k]; rowsOut.push({size:n, cells:n*n, open:Math.round(openCells/trials), algo:a,
+      ms:A.ms/trials, exp:A.exp/trials, cost:A.found?A.cost/A.found:NaN, len:A.found?A.len/A.found:NaN, optimal:A.optimal, trials}); });
+  }
+  benchData={rows:rowsOut, sizes:[...new Set(rowsOut.map(r=>r.size))], type, density, mud, trials, seed};
+  renderBench();
+  $('#benchMsg').textContent=`Finished: ${total} mazes × 4 algorithms. Seed ${seed}. Times come from this device and browser, so they will differ on other machines.`;
+  benchRunning=false; $('#benchBtn').disabled=false; $('#benchBtn').textContent='Run benchmark';
+}
+
+function renderBench(){
+  const {rows,sizes}=benchData;
+  let html='<table><thead><tr><th>Grid</th><th class="num">Cells (V)</th><th>Algorithm</th><th class="num">Avg time</th><th class="num">ns / cell</th><th class="num">Cells explored</th><th class="num">Path length</th><th class="num">Path cost</th><th>Shortest path found</th></tr></thead><tbody>';
+  rows.forEach((r,i)=>{
+    const first=i%ALGOS.length===0;
+    const opt=r.optimal===r.trials?`<span class="pill good">${r.optimal}/${r.trials}</span>`:`<span class="pill warn">${r.optimal}/${r.trials}</span>`;
+    html+=`<tr class="${first&&i>0?'group-start':''}"><td class="mono">${first?r.size+' × '+r.size:''}</td><td class="num">${first?r.cells.toLocaleString():''}</td>
+      <td><span class="algo-tag"><i style="background:var(${r.algo.color})"></i>${r.algo.name}</span></td>
+      <td class="num">${fmtMs(r.ms)}</td><td class="num">${(r.ms*1e6/r.cells).toFixed(1)}</td><td class="num">${Math.round(r.exp).toLocaleString()}</td>
+      <td class="num">${isNaN(r.len)?'—':r.len.toFixed(1)}</td><td class="num">${isNaN(r.cost)?'—':r.cost.toFixed(1)}</td><td>${opt}</td></tr>`;
+  });
+  html+='</tbody></table>';
+  $('#benchTableBox').innerHTML=html;
+  $('#copyCsv').disabled=false;
+
+  const labels=sizes.map(s=>s+'²');
+  const series=key=>ALGOS.map(a=>({name:a.name,color:a.color,values:sizes.map(s=>rows.find(r=>r.size===s&&r.algo===a)[key])}));
+  lineChart($('#chartTime'),labels,series('ms'),'Time (ms)','Grid size (n × n)');
+  lineChart($('#chartExp'),labels,series('exp'),'Cells explored','Grid size (n × n)');
+  document.querySelectorAll('[data-legend]').forEach(el=>el.innerHTML=ALGOS.map(a=>`<span><i style="background:var(${a.color})"></i>${a.name}</span>`).join(''));
+
+  // insights
+  const big=sizes[sizes.length-1], at=id=>rows.find(r=>r.size===big&&r.algo.id===id);
+  const b=at('bfs'), d=at('dfs'), dj=at('dijkstra'), as=at('astar');
+  const li=[];
+  li.push(`On the ${big} × ${big} grid, A* explored ${Math.round(as.exp).toLocaleString()} cells against Dijkstra's ${Math.round(dj.exp).toLocaleString()}, about ${Math.round((1-as.exp/dj.exp)*100)}% fewer, and still found the same lowest-cost path.`);
+  if(!isNaN(d.cost)&&!isNaN(dj.cost)) li.push(`DFS paths cost ${d.cost.toFixed(1)} on average against the optimal ${dj.cost.toFixed(1)}, so they were ${Math.round((d.cost/dj.cost-1)*100)}% more expensive. DFS finds a path, not the best one.`);
+  if(benchData.mud>0&&!isNaN(b.cost)) li.push(`With mud cells, BFS finds the path with the fewest steps but not the lowest cost: ${b.cost.toFixed(1)} against the optimal ${dj.cost.toFixed(1)}. Dijkstra and A* account for the weights.`);
+  else li.push('With no mud cells every step costs 1, so BFS also returns the shortest path.');
+  if(sizes.length>1){
+    const s0=sizes[0], r0=id=>rows.find(r=>r.size===s0&&r.algo.id===id);
+    const growV=(big*big)/(s0*s0), growT=dj.ms/r0('dijkstra').ms, growB=b.ms/r0('bfs').ms;
+    li.push(`From ${s0}² to ${big}² cells, V grew ${growV.toFixed(0)}×. BFS time grew ${growB.toFixed(0)}× and Dijkstra time grew ${growT.toFixed(0)}×. Read this against O(V) for BFS and O(V log V) for Dijkstra. A nearly flat "ns / cell" column means linear growth, and very small grids are dominated by fixed overhead.`);
+  }
+  $('#benchInsights').innerHTML=li.map(x=>`<li>${x}</li>`).join('');
+}
+
+function niceStep(x){ const e=Math.pow(10,Math.floor(Math.log10(x))), f=x/e; return (f<=1?1:f<=2?2:f<=2.5?2.5:f<=5?5:10)*e; }
+function fmtTick(v){ if(v===0) return '0'; if(v>=10000) return (v/1000).toFixed(0)+'k'; if(v>=1000) return (v/1000).toFixed(1).replace(/\.0$/,'')+'k'; if(v<1) return v.toFixed(v<0.1?3:2).replace(/0+$/,'').replace(/\.$/,''); return (+v.toFixed(1)).toString(); }
+function lineChart(el, labels, series, yTitle, xTitle){
+  const W=600,H=300,m={l:58,r:18,t:14,b:46}, iw=W-m.l-m.r, ih=H-m.t-m.b;
+  const max=Math.max(...series.flatMap(s=>s.values))||1, step=niceStep(max/4), top=Math.ceil(max/step)*step;
+  const x=i=>m.l+(labels.length===1?iw/2:i*iw/(labels.length-1)), y=v=>m.t+ih*(1-v/top);
+  let s=`<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="${yTitle} by grid size">`;
+  for(let v=0;v<=top+1e-9;v+=step){ const yy=y(v).toFixed(1); s+=`<line class="gridline" x1="${m.l}" x2="${W-m.r}" y1="${yy}" y2="${yy}"/><text x="${m.l-8}" y="${+yy+4}" text-anchor="end">${fmtTick(v)}</text>`; }
+  s+=`<line class="axis" x1="${m.l}" x2="${W-m.r}" y1="${m.t+ih}" y2="${m.t+ih}"/>`;
+  labels.forEach((l,i)=>{ s+=`<text x="${x(i)}" y="${m.t+ih+18}" text-anchor="middle">${l}</text>`; });
+  s+=`<text class="title" x="${m.l+iw/2}" y="${H-6}" text-anchor="middle">${xTitle}</text>`;
+  s+=`<text class="title" transform="translate(14 ${m.t+ih/2}) rotate(-90)" text-anchor="middle">${yTitle}</text>`;
+  for(const se of series){
+    const pts=se.values.map((v,i)=>`${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
+    s+=`<polyline points="${pts}" fill="none" style="stroke:var(${se.color})" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>`;
+    se.values.forEach((v,i)=>{ s+=`<circle cx="${x(i).toFixed(1)}" cy="${y(v).toFixed(1)}" r="3.5" style="fill:var(${se.color})"><title>${se.name} · ${labels[i]}: ${fmtTick(+v.toFixed(4))}</title></circle>`; });
+  }
+  el.innerHTML=s+'</svg>';
+}
+
+function toCsv(){
+  const head=['grid_size','cells','algorithm','avg_time_ms','ns_per_cell','cells_explored','path_length','path_cost','optimal_runs','trials'];
+  const lines=benchData.rows.map(r=>[`${r.size}x${r.size}`,r.cells,r.algo.name,r.ms.toFixed(4),(r.ms*1e6/r.cells).toFixed(1),Math.round(r.exp),isNaN(r.len)?'':r.len.toFixed(1),isNaN(r.cost)?'':r.cost.toFixed(1),r.optimal,r.trials].join(','));
+  return [head.join(','),...lines].join('\n');
+}
+$('#copyCsv').onclick=()=>{
+  if(!benchData) return;
+  const csv=toCsv(), ta=$('#csvOut');
+  const fallback=()=>{ ta.hidden=false; ta.value=csv; ta.focus(); ta.select(); $('#copyCsv').textContent='Select all and copy'; };
+  try{ navigator.clipboard.writeText(csv).then(()=>{ $('#copyCsv').textContent='Copied'; setTimeout(()=>$('#copyCsv').textContent='Copy table as CSV',1600); }, fallback); }catch(e){ fallback(); }
+};
+$('#benchBtn').onclick=runBenchmark;
+
+/* ================= Tabs + boot ================= */
+let benchAutoRan=false;
+function showTab(name){
+  document.querySelectorAll('.tabs button').forEach(b=>b.setAttribute('aria-selected',b.dataset.tab===name?'true':'false'));
+  document.querySelectorAll('[role=tabpanel]').forEach(p=>p.hidden=p.id!=='tab-'+name);
+  if(name==='visualizer') layout();
+  if(name==='benchmark'&&!benchAutoRan){ benchAutoRan=true; runBenchmark(); }
+}
+document.querySelector('.tabs').addEventListener('click',e=>{ const b=e.target.closest('button'); if(b){ showTab(b.dataset.tab); try{history.replaceState(null,'','#'+b.dataset.tab);}catch(_){} } });
+
+readColors();
+const reTheme=()=>{ readColors(); drawAll(); };
+try{ matchMedia('(prefers-color-scheme: dark)').addEventListener('change',reTheme); }catch(_){}
+new MutationObserver(reTheme).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
+let rz; window.addEventListener('resize',()=>{ clearTimeout(rz); rz=setTimeout(()=>{ if(!$('#tab-visualizer').hidden) layout(); },120); });
+
+newGrid();
+// open with a finished example run so the first view shows what the tool does
+(function(){ const s=$('#speed').value; $('#speed').value=6; runSelected(); $('#speed').value=s; })();
+const h=(location.hash||'').slice(1); if(['benchmark','theory','visualizer'].includes(h)) showTab(h);
+</script>
+
+</body>
+</html>
